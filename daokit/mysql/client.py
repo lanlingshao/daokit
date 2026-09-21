@@ -48,7 +48,7 @@ class MysqlClient:
     @asynccontextmanager
     async def session_context(self, transaction: bool = False):
         """
-        获取 session
+        get session context
 
         Example:
             async with mysql_client.session_context() as session:
@@ -77,16 +77,17 @@ class MysqlClient:
     @asynccontextmanager
     async def begin_transaction(self, session: AsyncSession) -> AsyncGenerator[AsyncSessionTransaction, None]:
         """
-        开启事务
+        begin transaction
+
+        begin内部实现了回滚和commit，调用链如下：
+        it implements rollback and commit internally. The call chain is:
+        AsyncSessionTransaction -> AsyncSession -> AsyncSessionTransaction
         """
 
-        # begin内部实现了回滚和commit，调用链如下：
-        # AsyncSessionTransaction -> AsyncSession -> AsyncSessionTransaction
         async with session.begin() as transaction:
             yield transaction
 
     async def close(self):
-        # 🔑 Resource 关心的就是这个
         await self._engine.dispose()
 
     async def execute(
@@ -97,7 +98,7 @@ class MysqlClient:
         commit: bool = True,
     ) -> Result:
         """
-        执行 SQL（INSERT / UPDATE / DELETE / DDL）
+        execute SQL（INSERT / UPDATE / DELETE / DDL）
 
         Example:
             await client.execute(
@@ -129,7 +130,7 @@ class MysqlClient:
         commit: bool = True,
     ) -> Result:
         """
-        批量执行 SQL
+        batch execute SQL（INSERT / UPDATE / DELETE / DDL）
 
         Example:
             await client.executemany(
@@ -153,7 +154,7 @@ class MysqlClient:
 
     async def fetch_all(self, sql: str, params: dict[str, Any] | None = None) -> list[dict]:
         """
-        查询多行
+        fetch all rows
         """
 
         async with self.session_context() as session:
@@ -166,7 +167,7 @@ class MysqlClient:
 
     async def fetch_one(self, sql: str, params: dict[str, Any] | None = None) -> dict | None:
         """
-        查询单行
+        fetch one row
         """
         async with self.session_context() as session:
             result = await session.execute(
@@ -181,7 +182,7 @@ class MysqlClient:
 
     async def fetch_scalar(self, sql: str, params: dict[str, Any] | None = None) -> Any:
         """
-        查询单个值
+        fetch the first column of the first row
         """
         async with self.session_context() as session:
             result = await session.execute(

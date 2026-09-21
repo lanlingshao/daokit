@@ -12,7 +12,7 @@ class Base(DeclarativeBase):
 
 
 class BaseModel(Base):
-    __abstract__ = True  # 不创建表
+    __abstract__ = True
     __tablename__ = ""
 
     created: Mapped[datetime] = mapped_column(
@@ -29,7 +29,7 @@ class BaseModel(Base):
     def table_name(self):
         return self.__tablename__
 
-    # 序列化
+    # serialize the model to dict, exclude the fields in exclude
     def to_dict(self, exclude: set[str] | None = None) -> dict[str, Any]:
         exclude = exclude or set()
         return {
@@ -42,7 +42,7 @@ class BaseModel(Base):
 class AutoIncrementModel(BaseModel):
     __abstract__ = True
 
-    # 默认主键设置，子类中可以定义自己的主键
+    # auto increment primary key
     id: Mapped[int] = mapped_column(primary_key=True)
 
     def __hash__(self):

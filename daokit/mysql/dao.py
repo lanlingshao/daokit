@@ -20,6 +20,7 @@ FetchParamT = TypeVar("FetchParamT")
 
 class AsyncMysqlDao(Generic[ModelT, FetchParamT]):
     # 子类必须指定
+    # subclass must specify this attribute
     model: type[ModelT]
 
     BATCH_SIZE = 5000
@@ -33,6 +34,7 @@ class AsyncMysqlDao(Generic[ModelT, FetchParamT]):
     async def create(self, session: AsyncSession, item: ModelT) -> None:
         session.add(item)
         # 这里需要flush，只有这样才能在程序里面获取插入数据的id
+        # flush is required to get the id of the inserted data
         await session.flush()
 
     async def batch_insert(self, session: AsyncSession, items: list[ModelT]) -> None:
@@ -44,6 +46,9 @@ class AsyncMysqlDao(Generic[ModelT, FetchParamT]):
             if not attr.startswith("_"):
                 setattr(old, attr, getattr(new, attr))
         # 当new_data_obj并没有改变obj中的数据时，sqlalchemy默认认为数据没变，不会更新updated字段, 所以这里需要手动更新updated字段
+        # when new_data_obj does not change the data in obj, sqlalchemy will think the data has not changed,
+        # and will not update the updated field
+        # so we need to manually update the updated field
         if hasattr(old, "updated"):
             old.updated = now_utc()
 
@@ -64,6 +69,8 @@ class AsyncMysqlDao(Generic[ModelT, FetchParamT]):
     async def fetch(self, session: AsyncSession, param: FetchParamT, fields: tuple | None = None) -> Sequence[ModelT]:
         """
         fields: 不能是字符串，而是model.字段名，如: (BankFinancialModel.report_date, BankFinancialModel.security_id)
+        fields: can not be string, but must be model.field name,
+        for example: (BankFinancialModel.report_date, BankFinancialModel.security_id)
         """
         stmt = select(self.model)
         where_clauses = self._build_where_clauses(param)
@@ -100,6 +107,7 @@ class AsyncMysqlDao(Generic[ModelT, FetchParamT]):
 
     async def quick_batch_upsert(self, session: AsyncSession, items: list[ModelT]) -> None:
         # 快速批量插入或更新数据，比batch_upsert快很多
+        # quick batch insert or update data, faster than batch_upsert
         if not items:
             return
 
@@ -123,6 +131,7 @@ class AsyncMysqlDao(Generic[ModelT, FetchParamT]):
     def _upsert_update_columns(self) -> list[str]:
         """
         ON DUPLICATE KEY UPDATE 时需要更新的字段
+        the columns to update when on duplicate key update
         """
         raise NotImplementedError
 
@@ -160,14 +169,17 @@ class AsyncMysqlDao(Generic[ModelT, FetchParamT]):
         where_clauses = self._build_where_clauses(param)
         if where_clauses:
             # where_clause为空不允许删除，避免删除全表数据
+            # if where_clause is empty, it will delete all data in the table, which is not allowed
             stmt = delete(self.model).where(*where_clauses)
             await session.execute(stmt)
 
     # ---------- 子类需要实现的方法 ----------
+    # ---------- methods that subclass must implement ----------
 
     def _build_unique_param(self, item: ModelT) -> FetchParamT:
         """
-        upsert / update_if_exist 使用
+        upsert 使用
+        the unique parameter to identify the data in the database, use for upsert
         """
         raise NotImplementedError
 
@@ -177,6 +189,7 @@ class AsyncMysqlDao(Generic[ModelT, FetchParamT]):
     def _build_where_clauses(self, param: FetchParamT):
         """
         把 FetchParam 转成 SQLAlchemy where 条件
+        convert FetchParam to SQLAlchemy where clauses
         """
         raise NotImplementedError
 

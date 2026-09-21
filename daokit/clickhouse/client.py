@@ -11,10 +11,11 @@ from clickhouse_connect.driver.exceptions import ClickHouseError
 
 class ClickHouseWriteClient:
     """
-    clickhouse 连接池
-    特点：
-    1、基于 clickhouse-driver 的异步封装，插入性能高
-    2、适合 CDC 顺序消费场景
+    clickhouse write client(based on asynch)
+
+    features:
+    1. use TCP protocol
+    2. insert performance high
     """
     def __init__(self, conf: dict):
         self.conf = conf
@@ -41,8 +42,11 @@ class ClickHouseWriteClient:
 
 class ClickHouseQueryClient:
     """
-    分析用 ClickHouse 客户端
-    使用clickhouse-connect库，适合分析场景，支持自动重连和Arrow查询
+    clickhouse query client(based on clickhouse_connect)
+
+    features:
+    1、use HTTP protocol
+    2、support auto reconnect and Arrow query
     """
 
     def __init__(self, conf: dict):
@@ -105,9 +109,6 @@ class ClickHouseQueryClient:
 
     @staticmethod
     def _is_connection_error(exc: Exception) -> bool:
-        """
-        判断是否属于连接异常
-        """
         connection_errors = (
             ConnectionError,
             BrokenPipeError,
@@ -173,10 +174,9 @@ class ClickHouseQueryClient:
     # Arrow
     async def query_arrow(self, sql: str) -> pa.Table:
         """
-        返回 PyArrow Table
+        return PyArrow Table
 
-        适合：
-        - 因子计算
+        suit for：
         - DuckDB
         - Polars
         - Pandas
@@ -190,7 +190,8 @@ class ClickHouseQueryClient:
         """
         Arrow RecordBatchReader
 
-        适合超大结果集
+        suit for：
+        - huge result set
         """
         async def operation():
             return await self._client.query_arrow_stream(sql)
