@@ -15,8 +15,8 @@ from sqlalchemy.ext.asyncio import (
 
 # 借鉴perfect的src/prefect/server/database/interface.py中的PrefectDBInterface
 class MysqlClient:
-    def __init__(self, database_conf: dict):
-        self.conf = database_conf
+    def __init__(self, conf: dict):
+        self.conf = conf
         self._engine = self._create_engine()
         self._session_factory = async_sessionmaker(self._engine, expire_on_commit=False)
 

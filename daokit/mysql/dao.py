@@ -18,7 +18,7 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 FetchParamT = TypeVar("FetchParamT")
 
 
-class AsyncMysqlDao(Generic[ModelT, FetchParamT]):
+class MysqlDao(Generic[ModelT, FetchParamT]):
     # 子类必须指定
     # subclass must specify this attribute
     model: type[ModelT]

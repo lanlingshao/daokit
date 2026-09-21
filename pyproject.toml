@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "asynch==0.3.1",
+    "asyncmy==0.2.10",
     "clickhouse-connect==1.1.1",
+    "greenlet==3.2.3",
     "pyarrow==24.0.0",
     "sqlalchemy==2.0.41",
 ]
