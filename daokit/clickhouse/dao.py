@@ -1,3 +1,4 @@
+import re
 from abc import ABC
 import logging
 from typing import Generic, TypeVar
@@ -11,6 +12,10 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 ModelT = TypeVar("ModelT", bound=CKModel)
 FetchParamT = TypeVar("FetchParamT")
+
+_IDENTIFIER_RE = re.compile(
+    r"^[A-Za-z_][A-Za-z0-9_]*$"
+)
 
 
 class ClickHouseDao(Generic[ModelT], ABC):
@@ -27,50 +32,103 @@ class ClickHouseDao(Generic[ModelT], ABC):
         self.write_client = write_client
         self.read_client = read_client
 
-    def _build_where(self, param: FetchParamT) -> list[str]:
-        return []
+    # ------------------------------------------------------------------
+    # identifier
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _validate_identifier(value: str) -> str:
+        # prevent the table name is "user; DROP TABLE xxx"
+        if not _IDENTIFIER_RE.fullmatch(value):
+            raise ValueError(f"Invalid SQL identifier: {value!r}")
+        return value
+
+    def _table_name(self) -> str:
+        return self._validate_identifier(self.model.__tablename__)
+
+    def _validate_fields(self, fields: list[str]) -> list[str]:
+        allowed = set(self.model.columns())
+        invalid = set(fields) - allowed
+        if invalid:
+            raise ValueError(f"Invalid fields: {sorted(invalid)}")
+        return fields
+
+    def _build_fields(self, fields: list[str] | None) -> str:
+        if not fields:
+            return "*"
+        fields = self._validate_fields(fields)
+        return ",".join(
+            f"`{field}`"
+            for field in fields
+        )
+
+    def _build_where(self, param: FetchParamT) -> tuple[list[str], dict]:
+        return [], {}
 
     def build_order_by(self, param: FetchParamT) -> str | None:
         return None
 
-    def build_query_sql(self, param: FetchParamT, fields: list[str] = None) -> str:
-        where = self._build_where(param)
-        fields_str = "*"
-        if fields:
-            # 给字段加别名，针对自定义字段
-            fields_str = ",".join([f"{field} as `{field}`" for field in fields])
-        sql = f"""
-        SELECT {fields_str}
-        FROM {self.model.__tablename__}
-        """
+    def _build_from(self) -> str:
+        sql = f"FROM `{self._table_name()}`"
         if self.use_final:
             sql += " FINAL"
+        return sql
+
+    def build_query(self, param: FetchParamT, fields: list[str] | None = None) -> tuple[str, dict]:
+        where, parameters = self._build_where(param)
+
+        fields_str = self._build_fields(fields)
+
+        sql = f"""
+              SELECT {fields_str}
+              {self._build_from()}
+              """
+
         if where:
-            sql += f"\nWHERE {' AND '.join(where)}"
+            sql += "\nWHERE " + " AND ".join(where)
+
         order_by = self.build_order_by(param)
         if order_by:
             sql += f"\nORDER BY {order_by}"
-        if getattr(param, "page", None) and getattr(param, "page_size", None):
-            offset = (param.page - 1) * param.page_size
-            sql += f"\nLIMIT {param.page_size} \nOFFSET {offset}"
 
-        logger.debug(sql)
+        page = getattr(param, "page", None)
+        page_size = getattr(param, "page_size", None)
+        if page is not None and page_size is not None:
+            if page < 1:
+                raise ValueError("page must be >= 1")
+            if page_size <= 0:
+                raise ValueError("page_size must be > 0")
+            offset = (page - 1) * page_size
 
-        return sql
+            sql += """
+                   LIMIT {limit:UInt64}
+                   OFFSET {offset:UInt64}
+                   """
 
-    def build_count_sql(self, param: FetchParamT) -> str:
-        where = self._build_where(param)
+            parameters["limit"] = page_size
+            parameters["offset"] = offset
+
+        logger.debug(
+            "ClickHouse query: %s, parameters=%s",
+            sql,
+            parameters,
+        )
+
+        return sql, parameters
+
+    def build_count(self, param: FetchParamT) -> tuple[str, dict]:
+        where, parameters = self._build_where(param)
         sql = f"""
-        SELECT count() AS count
-        FROM {self.model.__tablename__}
-        """
+              SELECT count() AS count
+              {self._build_from()}
+              """
         if where:
             sql += f"\nWHERE {' AND '.join(where)}"
-        return sql
+        return sql, parameters
 
-    async def fetch_dicts(self, param: FetchParamT, fields: list[str] = None) -> list[dict]:
-        sql = self.build_query_sql(param, fields)
-        return await self.read_client.fetch_all(sql)
+    async def fetch_dicts(self, param: FetchParamT, fields: list[str] | None = None) -> list[dict]:
+        sql, parameters = self.build_query(param, fields)
+        return await self.read_client.fetch_all(sql, parameters=parameters)
 
     async def fetch_dicts_with_count(self, param: FetchParamT, fields: list[str] = None) -> tuple[list[dict], int]:
         dicts = await self.fetch_dicts(param, fields)
@@ -86,18 +144,11 @@ class ClickHouseDao(Generic[ModelT], ABC):
         return models
 
     async def count(self, param: FetchParamT) -> int:
-        where = self._build_where(param)
-        sql = f"""
-                SELECT count()
-                FROM {self.model.__tablename__} FINAL
-                """
-        if len(where):
-            sql += f"\nWHERE {' AND '.join(where)}"
-
-        result = await self.read_client.fetch_one(sql)
+        sql, parameters = self.build_count(param)
+        result = await self.read_client.fetch_one(sql, parameters=parameters)
         if not result:
             return 0
-        return list(result.values())[0]
+        return int(result["count"])
 
     async def batch_insert(self, items: list[ModelT]):
         """
@@ -108,12 +159,17 @@ class ClickHouseDao(Generic[ModelT], ABC):
         if not items:
             return
 
-        cols = self.model.columns()
+        columns = self._validate_fields(self.model.columns())
+        columns_sql = ",".join(
+            f"`{column}`"
+            for column in columns
+        )
+
         sql = f"""
-        INSERT INTO {self.model.__tablename__}
-        ({",".join(cols)})
-        VALUES
-        """
+              INSERT INTO `{self._table_name()}`
+              ({columns_sql})
+              VALUES
+              """
 
         for i in range(0, len(items), self.BATCH_SIZE):
             batch = items[i:i + self.BATCH_SIZE]

@@ -155,24 +155,24 @@ class ClickHouseQueryClient:
         return await self._execute(operation)
 
     # query
-    async def fetch_one(self, sql: str) -> dict | None:
+    async def fetch_one(self, sql: str, parameters: dict | None = None) -> dict | None:
         async def operation():
-            result = await self._client.query(sql)
+            result = await self._client.query(sql, parameters=parameters)
             rows = list(result.named_results())
             return rows[0] if rows else None
 
         return await self._execute(operation)
 
-    async def fetch_all(self, sql: str) -> list[dict]:
+    async def fetch_all(self, sql: str, parameters: dict | None = None) -> list[dict]:
         async def operation():
-            result = await self._client.query(sql)
+            result = await self._client.query(sql, parameters=parameters)
             rows = list(result.named_results())
             return rows
 
         return await self._execute(operation)
 
     # Arrow
-    async def query_arrow(self, sql: str) -> pa.Table:
+    async def query_arrow(self, sql: str, parameters: dict | None = None) -> pa.Table:
         """
         return PyArrow Table
 
@@ -182,11 +182,11 @@ class ClickHouseQueryClient:
         - Pandas
         """
         async def operation():
-            return await self._client.query_arrow(sql)
+            return await self._client.query_arrow(sql, parameters=parameters,)
 
         return await self._execute(operation)
 
-    async def query_arrow_stream(self, sql: str):
+    async def query_arrow_stream(self, sql: str, parameters: dict | None = None):
         """
         Arrow RecordBatchReader
 
@@ -194,6 +194,6 @@ class ClickHouseQueryClient:
         - huge result set
         """
         async def operation():
-            return await self._client.query_arrow_stream(sql)
+            return await self._client.query_arrow_stream(sql, parameters=parameters,)
 
         return await self._execute(operation)
