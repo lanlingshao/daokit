@@ -6,6 +6,8 @@ from daokit.clickhouse.dao import ClickHouseDao
 from daokit.clickhouse.model import CKModel
 
 """
+Step 0. Create the table first.
+
 CREATE TABLE IF NOT EXISTS `user`
 (
     username String,
@@ -15,19 +17,9 @@ ENGINE = MergeTree
 ORDER BY username;
 """
 
-
-conf = {
-    "host": "127.0.0.1",
-    "tcp_port": "9000",
-    "http_port": "8123",
-    "username": "default",
-    "password": "",
-    "database": "test",
-    "connect_timeout": 15,
-    "maxsize": 5,
-    "minsize": 1,
-}
-
+# ---------------------------------------------------------------------------
+# Step 1. Define the Model
+# ---------------------------------------------------------------------------
 
 @dataclass
 class UserModel(CKModel):
@@ -37,11 +29,23 @@ class UserModel(CKModel):
     email: str
 
 
+# ---------------------------------------------------------------------------
+# Step 2. Define the query parameters
+# ---------------------------------------------------------------------------
+
 @dataclass
 class UserFetchParam:
     username: str = None
     email: str = None
 
+
+# ---------------------------------------------------------------------------
+# Step 3. Define the DAO
+#
+# Generic insert/query behavior is provided by ClickHouseDao.
+# UserDao only needs to define how UserFetchParam is translated into
+# ClickHouse WHERE conditions.
+# ---------------------------------------------------------------------------
 
 class UserDao(ClickHouseDao):
     model = UserModel
@@ -59,6 +63,24 @@ class UserDao(ClickHouseDao):
             parameters["email"] = param.email
         return where, parameters
 
+
+# ---------------------------------------------------------------------------
+# Step 4. Create the ClickHouse clients and DAO
+#
+# Write and query clients are separated.
+# ---------------------------------------------------------------------------
+
+conf = {
+    "host": "127.0.0.1",
+    "tcp_port": "9000",
+    "http_port": "8123",
+    "username": "default",
+    "password": "",
+    "database": "test",
+    "connect_timeout": 15,
+    "maxsize": 5,
+    "minsize": 1,
+}
 
 write_client = ClickHouseWriteClient(conf)
 read_client = ClickHouseQueryClient(conf)
@@ -78,19 +100,50 @@ async def fetch_user_models(param: UserFetchParam) -> list[UserModel]:
     users = await user_dao.fetch_models(param)
     return users
 
+# ---------------------------------------------------------------------------
+# Step 6. Run the example
+# ---------------------------------------------------------------------------
 
 async def main():
     try:
+        # ---------------------------------------------------------------
+        # Step 6.1. Batch insert
+        # ---------------------------------------------------------------
+
+        print("\n=== 1. Batch insert users ===")
+
         await batch_create_users([
             UserModel(username="a", email="a@example.com"),
             UserModel(username="b", email="b@example.com"),
         ])
 
+        # ---------------------------------------------------------------
+        # Step 6.2. Query as dictionaries
+        #
+        # fetch_dicts() is useful when the application only needs raw
+        # database results.
+        # ---------------------------------------------------------------
+
+        print("\n=== 2. Fetch as dictionaries ===")
+
         users = await fetch_user_dicts(UserFetchParam(username="a"))
         print(users)
+
+        # ---------------------------------------------------------------
+        # Step 6.3. Query as Models
+        #
+        # fetch_models() converts database rows into UserModel instances.
+        # ---------------------------------------------------------------
+
+        print("\n=== 3. Fetch as models ===")
         users = await fetch_user_models(UserFetchParam(username="b"))
         print(users)
     finally:
+        # ---------------------------------------------------------------
+        # Step 6.4. Close clients
+        # ---------------------------------------------------------------
+
+        print("\n=== 4. Close clients ===")
         await write_client.close()
         await read_client.close()
 

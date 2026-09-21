@@ -9,7 +9,9 @@ from daokit.mysql.client import MysqlClient
 from daokit.mysql.dao import MysqlDao, FetchParamT
 from daokit.mysql.model import AutoIncrementModel
 
-'''
+"""
+Step 0. Create the table first.
+
 CREATE TABLE `user` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `username` varchar(32) NOT NULL,
@@ -20,8 +22,12 @@ CREATE TABLE `user` (
   UNIQUE KEY `user_email_IDX` (`email`) USING BTREE,
   UNIQUE KEY `user_username_IDX` (`username`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='user';
-'''
+"""
 
+
+# ---------------------------------------------------------------------------
+# Step 1. Define the Model
+# ---------------------------------------------------------------------------
 
 class UserModel(AutoIncrementModel):
     __tablename__ = "user"
@@ -33,12 +39,24 @@ class UserModel(AutoIncrementModel):
         return f"<UserModel: {self.id}, {self.username}, {self.email})>"
 
 
+# ---------------------------------------------------------------------------
+# Step 2. Define the query parameters
+#
+# FetchParam describes which fields can be used to query UserModel.
+# ---------------------------------------------------------------------------
 @dataclass
 class UserFetchParam:
     id: int = None
     username: str = None
     email: str = None
 
+
+# ---------------------------------------------------------------------------
+# Step 3. Define the DAO
+#
+# The DAO contains the User-specific query conditions and unique-key logic.
+# Generic CRUD behavior is provided by MysqlDao.
+# ---------------------------------------------------------------------------
 
 class UserDao(MysqlDao[UserModel, UserFetchParam]):
     model = UserModel
@@ -50,17 +68,21 @@ class UserDao(MysqlDao[UserModel, UserFetchParam]):
 
     def _build_where_clauses(self, param: UserFetchParam):
         where_clauses = []
-        if param.id:
+        if param.id is not None:
             where_clauses.append(UserModel.id == param.id)
-        if param.username:
+        if param.username is not None:
             where_clauses.append(UserModel.username == param.username)
-        if param.email:
+        if param.email is not None:
             where_clauses.append(UserModel.email == param.email)
         return where_clauses
 
     def _build_param(self, **kwargs) -> FetchParamT:
         return UserFetchParam(**kwargs)
 
+
+# ---------------------------------------------------------------------------
+# Step 4. Create the MySQL client and DAO
+# ---------------------------------------------------------------------------
 
 conf = {
     "username": "root",
@@ -75,6 +97,13 @@ conf = {
 mysql_client = MysqlClient(conf)
 user_dao = UserDao(mysql_client)
 
+
+# ---------------------------------------------------------------------------
+# Step 5. Define application-level operations
+#
+# The application owns the transaction/session boundary.
+# DAO only performs database operations using the provided session.
+# ---------------------------------------------------------------------------
 
 async def create_user(session: AsyncSession, username: str, email: str) -> UserModel:
     user = UserModel(
@@ -99,19 +128,52 @@ async def update_user(old_user_model: UserModel, username: str, email: str):
     )
     await user_dao.update(old_user_model, new_user_model)
 
+
+# ---------------------------------------------------------------------------
+# Step 6. Run the example
+# ---------------------------------------------------------------------------
+
 async def main():
-    # begin a transaction
+    # -----------------------------------------------------------------------
+    # Step 6.1. Create a session and start a transaction.
+    #
+    # All operations in this block share the same transaction.
+    # -----------------------------------------------------------------------
     async with mysql_client.session_context(transaction=True) as session:
+        print("\n=== 1. Create user ===")
         user = await create_user(session, "admin", "admin@example.com")
-        user = await get_user_by_id(session, user.id)
-        print(user)
-        await update_user(user, "admin1", "admin1@example.com")
+
+        # -------------------------------------------------------------------
+        # Step 6.2. Query by primary key
+        # -------------------------------------------------------------------
+
+        print("\n=== 2. Query user by id ===")
         user = await get_user_by_id(session, user.id)
         print(user)
 
-    # if you only want to query, you don't need to begin transaction
-    # you can use session_context() to get a session without transaction
+        # -------------------------------------------------------------------
+        # Step 6.3. Update the user
+        # -------------------------------------------------------------------
+
+        print("\n=== 3. Update user ===")
+        await update_user(user, "admin1", "admin1@example.com")
+
+        # -------------------------------------------------------------------
+        # Step 6.4. Query again inside the same transaction
+        # -------------------------------------------------------------------
+
+        print("\n=== 4. Query updated user ===")
+        user = await get_user_by_id(session, user.id)
+        print(user)
+
+    # -----------------------------------------------------------------------
+    # Step 6.5. The transaction has been committed automatically.
+    #
+    # For read-only operations, a transaction is not required by the
+    # application API. A normal session can be used.
+    # -----------------------------------------------------------------------
     async with mysql_client.session_context() as session:
+        print("\n=== 5. Query user after transaction ===")
         user = await get_user_by_username(session, "admin1")
         print(user)
 
