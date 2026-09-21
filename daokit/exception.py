@@ -1,9 +1,6 @@
-class CustomException(Exception):
-    """
-    自定义异常基类
-    custom exception base class
-    """
 
+
+class DaoException(Exception):
     def __init__(
         self,
         code: int | None = None,

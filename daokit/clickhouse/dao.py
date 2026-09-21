@@ -2,7 +2,7 @@ from abc import ABC
 import logging
 from typing import Generic, TypeVar
 
-from daokit.clickhouse.client import ClickHouseWriteClient, ClickHouseReadClient
+from daokit.clickhouse.client import ClickHouseWriteClient, ClickHouseQueryClient
 from daokit.clickhouse.model import CKModel
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ class ClickHouseDao(Generic[ModelT], ABC):
     def __init__(
         self,
         write_client: ClickHouseWriteClient,
-        read_client: ClickHouseReadClient,
+        read_client: ClickHouseQueryClient,
     ):
         self.write_client = write_client
         self.read_client = read_client
@@ -99,7 +99,12 @@ class ClickHouseDao(Generic[ModelT], ABC):
             return 0
         return list(result.values())[0]
 
-    async def insert_batch(self, items: list[ModelT]):
+    async def batch_insert(self, items: list[ModelT]):
+        """
+        limit the number of rows inserted per batch
+        限制每批次插入的行数
+        """
+
         if not items:
             return
 
@@ -113,4 +118,4 @@ class ClickHouseDao(Generic[ModelT], ABC):
         for i in range(0, len(items), self.BATCH_SIZE):
             batch = items[i:i + self.BATCH_SIZE]
             rows = [item.to_tuple() for item in batch]
-            await self.write_client.insert_batch(sql, rows)
+            await self.write_client.batch_insert(sql, rows)

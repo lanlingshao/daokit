@@ -31,25 +31,7 @@ class ClickHouseWriteClient:
             database=self.conf["database"],
         )
 
-    async def execute(self, sql: str):
-        """
-        执行任意 SQL
-
-        适用于：
-        - INSERT SELECT
-        - ALTER
-        - DELETE
-        - OPTIMIZE
-        - CREATE
-        """
-        async with self._pool.connection() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(sql)
-
-    async def insert_batch(self, sql: str, rows: list[tuple]):
-        """
-        批量插入
-        """
+    async def batch_insert(self, sql: str, rows: list[tuple]):
         if not rows:
             return
         async with self._pool.connection() as conn:
@@ -57,7 +39,7 @@ class ClickHouseWriteClient:
                 await cursor.executemany(sql, rows)
 
 
-class ClickHouseReadClient:
+class ClickHouseQueryClient:
     """
     分析用 ClickHouse 客户端
     使用clickhouse-connect库，适合分析场景，支持自动重连和Arrow查询

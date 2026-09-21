@@ -7,7 +7,7 @@ from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 
-from daokit.exception import CustomException
+from daokit.exception import DaoException
 from daokit.mysql.client import MysqlClient
 from daokit.mysql.model import BaseModel
 from daokit.util.time import now_utc
@@ -149,7 +149,7 @@ class AsyncMysqlDao(Generic[ModelT, FetchParamT]):
 
     async def soft_delete(self, session: AsyncSession, param: FetchParamT):
         if not hasattr(self.model, "deleted"):
-            raise CustomException(msg="data not support soft delete")
+            raise DaoException(msg="data not support soft delete")
         items = await self.fetch(session, param)
         if not items:
             return
