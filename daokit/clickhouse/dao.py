@@ -1,13 +1,11 @@
 from abc import ABC
+import logging
 from typing import Generic, TypeVar
 
-from loguru import logger
+from daokit.clickhouse.client import ClickHouseWriteClient, ClickHouseReadClient
+from daokit.clickhouse.model import CKModel
 
-from pkg.common.exception import err
-from pkg.common.response.response_code import CustomResponseCode
-from pkg.infra.db.clickhouse import AnalysisClickHouseClient, ClickHouseClient
-from pkg.infra.model.base import CKModel
-from pkg.scheme.base import PaginationResp
+logger = logging.getLogger(__name__)
 
 
 T = TypeVar("T")
@@ -22,8 +20,8 @@ class ClickHouseDao(Generic[ModelT], ABC):
 
     def __init__(
         self,
-        write_client: ClickHouseClient,
-        read_client: AnalysisClickHouseClient,
+        write_client: ClickHouseWriteClient,
+        read_client: ClickHouseReadClient,
     ):
         self.write_client = write_client
         self.read_client = read_client
