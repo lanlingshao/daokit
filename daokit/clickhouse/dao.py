@@ -17,6 +17,7 @@ class ClickHouseDao(Generic[ModelT], ABC):
     model: type[CKModel]
 
     BATCH_SIZE = 5000
+    use_final = False
 
     def __init__(
         self,
@@ -40,8 +41,10 @@ class ClickHouseDao(Generic[ModelT], ABC):
             fields_str = ",".join([f"{field} as `{field}`" for field in fields])
         sql = f"""
         SELECT {fields_str}
-        FROM {self.model.__tablename__} FINAL
+        FROM {self.model.__tablename__}
         """
+        if self.use_final:
+            sql += " FINAL"
         if where:
             sql += f"\nWHERE {' AND '.join(where)}"
         order_by = self.build_order_by(param)

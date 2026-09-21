@@ -7,8 +7,7 @@ from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 
-
-from daokit.core.err import CustomException
+from daokit.exception import CustomException
 from daokit.mysql.client import MysqlClient
 from daokit.mysql.model import BaseModel
 from daokit.util.time import now_utc
