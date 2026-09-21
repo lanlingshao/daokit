@@ -74,7 +74,7 @@ class ClickHouseDao(Generic[ModelT], ABC):
             sql += " FINAL"
         return sql
 
-    def build_query(self, param: FetchParamT, fields: list[str] | None = None) -> tuple[str, dict]:
+    def _build_query(self, param: FetchParamT, fields: list[str] | None = None) -> tuple[str, dict]:
         where, parameters = self._build_where(param)
 
         fields_str = self._build_fields(fields)
@@ -116,7 +116,7 @@ class ClickHouseDao(Generic[ModelT], ABC):
 
         return sql, parameters
 
-    def build_count(self, param: FetchParamT) -> tuple[str, dict]:
+    def _build_count(self, param: FetchParamT) -> tuple[str, dict]:
         where, parameters = self._build_where(param)
         sql = f"""
               SELECT count() AS count
@@ -127,7 +127,7 @@ class ClickHouseDao(Generic[ModelT], ABC):
         return sql, parameters
 
     async def fetch_dicts(self, param: FetchParamT, fields: list[str] | None = None) -> list[dict]:
-        sql, parameters = self.build_query(param, fields)
+        sql, parameters = self._build_query(param, fields)
         return await self.read_client.fetch_all(sql, parameters=parameters)
 
     async def fetch_dicts_with_count(self, param: FetchParamT, fields: list[str] = None) -> tuple[list[dict], int]:
@@ -144,7 +144,7 @@ class ClickHouseDao(Generic[ModelT], ABC):
         return models
 
     async def count(self, param: FetchParamT) -> int:
-        sql, parameters = self.build_count(param)
+        sql, parameters = self._build_count(param)
         result = await self.read_client.fetch_one(sql, parameters=parameters)
         if not result:
             return 0

@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "aiohttp==3.11.18",
     "asynch==0.3.1",
     "asyncmy==0.2.10",
     "clickhouse-connect==1.1.1",

@@ -32,6 +32,9 @@ class ClickHouseWriteClient:
             database=self.conf["database"],
         )
 
+    async def close(self):
+        await self._pool.shutdown()
+
     async def batch_insert(self, sql: str, rows: list[tuple]):
         if not rows:
             return

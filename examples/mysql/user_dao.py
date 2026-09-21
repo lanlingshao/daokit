@@ -100,6 +100,7 @@ async def update_user(old_user_model: UserModel, username: str, email: str):
     await user_dao.update(old_user_model, new_user_model)
 
 async def main():
+    # begin a transaction
     async with mysql_client.session_context(transaction=True) as session:
         user = await create_user(session, "admin", "admin@example.com")
         user = await get_user_by_id(session, user.id)

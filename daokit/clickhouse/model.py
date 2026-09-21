@@ -13,5 +13,8 @@ class CKModel:
         return tuple(getattr(self, f.name) for f in fields(self))
 
     @classmethod
-    def from_dict(cls, row):
-        ...
+    def from_dict(cls, row: dict):
+        d = {}
+        for f in fields(cls):
+            d[f.name] = row.get(f.name)
+        return cls(**d)
